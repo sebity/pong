@@ -1,5 +1,7 @@
 ;;;; package.lisp
 
 (defpackage #:pong
-  (:use #:cl))
+  (:use #:cl)
+  (:export #:start))
+
 

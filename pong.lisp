@@ -2,13 +2,27 @@
 
 (in-package #:pong)
 
+(defparameter *data-root* "src/lisp/pong/")
+(defparameter *font-root* (merge-pathnames "fonts/" *data-root*))
+(defparameter *audio-root* (merge-pathnames "audio/" *data-root*))
+
 (defparameter *game-width* 600)
 (defparameter *game-height* 600)
+(defparameter *game-state* 0) ; 0=entry, 1:ready, 2:in-game, 3:miss, 4:end-level, 5:scores
 (defparameter *player-1* nil)
 (defparameter *player-2* nil)
 (defparameter *ball* nil)
 (defparameter *player-1-score* 0)
 (defparameter *player-2-score* 0)
+(defparameter *players* 1)
+
+(defparameter *mixer-opened* nil)
+(defparameter *music* nil)
+(defparameter *soundfx* nil)
+
+(defparameter *terminus-ttf* (make-instance 'SDL:ttf-font-definition
+					    :size 24
+					    :filename (merge-pathnames "TerminusTTF.ttf" *font-root*)))
 
 ;;;; PADDLE class
 
@@ -20,7 +34,7 @@
    (r :accessor r :initarg :r)
    (g :accessor g :initarg :g)
    (b :accessor b :initarg :b)
-   (v-y :accessor v-y :initarg :v-y :initform 0)
+   (v-y :accessor v-y :initarg :v-y :initform 0.0)
    (spd :accessor spd :initarg :spd)))
 
 (defclass ball ()
@@ -31,8 +45,8 @@
    (r :accessor r :initarg :r)
    (g :accessor g :initarg :g)
    (b :accessor b :initarg :b)
-   (v-x :accessor v-x :initarg :v-x :initform 0)
-   (v-y :accessor v-y :initarg :v-y :initform 0)
+   (v-x :accessor v-x :initarg :v-x :initform 0.0)
+   (v-y :accessor v-y :initarg :v-y :initform 0.0)
    (spd :accessor spd :initarg :spd)))
 
 
@@ -68,26 +82,33 @@
       (if (< (v-y b) (- (* (spd b) 2)))
 	  (setf (v-y b) (- (* (spd b) 2)))))
 
+  ; top wall
   (if (or (< (- (y b) 5) 0) (> (+ (y b) 5) *game-height*))
-      (setf (v-y b) (- (v-y b))))
+      (progn (setf (v-y b) (- (v-y b)))
+	     (play-sound 2)))
 
+  ; player 1 paddle
   (if (and (<= (x b) (+ (x p1) (w p1)))
 	   (>= (x b) (x p1)))
       (if (and (<= (y b) (+ (y p1) (/ (h p1) 2)))
 	       (>= (y b) (- (y p1) (/ (h p1) 2))))
-	  (setf (v-x b) (- (v-x b)))))
+	  (progn (setf (v-x b) (- (v-x b)))
+		 (play-sound 0))))
 
+  ; player 2 paddle
   (if (and (>= (x b) (- (x p2) (w p2)))
 	   (<= (x b) (x p2)))
       (if (and (<= (y b) (+ (y p2) (/ (h p2) 2)))
 	       (>= (y b) (- (y p2) (/ (h p2) 2))))
-	  (setf (v-x b) (- (v-x b)))))
+	  (progn (setf (v-x b) (- (v-x b)))
+		 (play-sound 0))))
 
   (if (<= (x b) 0)
-      (update-score 2))
+      (progn (update-score 2)
+	     (play-sound 1)))
   (if (>= (x b) *game-width*)
-      (update-score 1)))
-
+      (progn (update-score 1)
+	     (play-sound 1))))
 
 
 ;;;; DRAW-PADDLE function
@@ -109,12 +130,13 @@
 	     (setf (y player) (+ (y player) (spd player)))))))
 
 
-(defun player-ai (c b)
-  ;(setf (v-y c) (- (y b) (y c)))
+;;;; PLAYER-AI function
 
+(defun player-ai (c b)
   (if (< (y b) (y c))
-      (setf (y c) (- (y c) 2))
-      (setf (y c) (+ (y c) 2))))
+      (setf (y c) (- (y c) (spd c)))
+      (setf (y c) (+ (y c) (spd c)))))
+
 
 ;;;; PLAYER-1 function
 
@@ -146,7 +168,6 @@
   (reset-game))
 
 
-
 ;;;; DRAW-TEXT function
 
 (defun draw-text (string x y r g b)
@@ -158,8 +179,37 @@
 ;;;; DISPLAY-SCORE function
 
 (defun display-score ()
-  (let ((score (format nil "~a : ~a" *player-1-score* *player-2-score*)))
-    (draw-text score (- (/ *game-width* 2) 20) 10 255 255 255)))
+  (let ((score (format nil "~a   ~a" *player-1-score* *player-2-score*)))
+    (draw-text score (- (/ *game-width* 2) 30) 10 255 255 255)))
+
+
+(defun display-court ()
+  (sdl:draw-line-* (ash *game-width* -1) 0 
+		   (ash *game-width* -1) *game-height*
+		   :color sdl:*white*))
+
+
+;;;; PLAY-SOUND function
+
+(defun play-sound (s)
+  (sdl-mixer:play-sample (aref *soundfx* s)))
+
+
+;;;; DISPLAY-MENU function
+
+(defun display-menu ()
+  (draw-text "PONG" (- (/ *game-width* 2) 10) 100 255 255 255)
+  (draw-text "Press SPACE to Play" (- (/ *game-width* 2) 100) 300 255 255 0))
+
+
+;;;; CHANGE-GAME-STATE function
+
+(defun change-game-state ()
+  (if (zerop *game-state*)
+      (progn (setf *player-1-score* 0)
+	     (setf *player-2-score* 0)
+	     (reset-game)
+	     (setf *game-state* 2))))
 
 
 ;;;; RENDER function
@@ -167,11 +217,15 @@
 (defun render ()
   (update-swank)
   (sdl:clear-display sdl:*black*)
-  (player-1)
-  (player-2)
-  (ball)
-  (display-score)
-  (player-ai *player-2* *ball*)
+  (cond ((zerop *game-state*) (display-menu))
+	(t (player-1)
+	   (player-2)
+	   (display-court)
+	   (display-score)
+	   (ball)
+	   (if (= *players* 1)
+	       (player-ai *player-2* *ball*))))
+
   (sdl:update-display))
 
 
@@ -179,34 +233,71 @@
 
 (defun reset-game ()
   (setf *player-1* (make-instance 'paddle
-				  :x 10 :y (/ *game-height* 2)
+				  :x 10.0 :y (/ *game-height* 2.0)
 				  :w 10 :h 40
 				  :r 255 :g 0 :b 0
-				  :spd 3))
+				  :spd 4.5))
   (setf *player-2* (make-instance 'paddle
-				  :x (- *game-width* 10) :y (/ *game-height* 2)
+				  :x (- *game-width* 10.0) :y (/ *game-height* 2.0)
 				  :w 10 :h 40
 				  :r 0 :g 0 :b 255
-				  :spd 3))
+				  :spd 4.5))
   (setf *ball* (make-instance 'ball
-			      :x (/ *game-width* 2) :y (/ *game-height* 2)
+			      :x (/ *game-width* 2.0) :y (/ *game-height* 2.0)
 			      :w 10 :h 10
 			      :r 255 :g 255 :b 0
- 			      :v-x -1 :v-y 1 :spd 2))) 
+ 			      :v-x -1.0 :v-y 0.8 :spd 4.0))) 
 
 
 ;;;; INITIALIZE-GAME function
 
 (defun initialize-game ()
+  (setf *players* 1)
   (setf *player-1-score* 0)
-  (setf *player-2-score* 0))
+  (setf *player-2-score* 0)
+  (setf *game-state* 0))
+
+
+;;;; SETUP-AUDIO function
+
+(defun setup-audio ()
+  (setf *soundfx* (make-array 3))
+  (sdl-mixer:init-mixer :mp3)
+  (setf *mixer-opened* (sdl-mixer:OPEN-AUDIO :chunksize 1024 :enable-callbacks nil))
+  (when *mixer-opened*
+    (setf (aref *soundfx* 0) (sdl-mixer:load-sample (sdl:create-path "beep.ogg" *audio-root*)))
+    (setf (aref *soundfx* 1) (sdl-mixer:load-sample (sdl:create-path "peep.ogg" *audio-root*)))
+    (setf (aref *soundfx* 2) (sdl-mixer:load-sample (sdl:create-path "plop.ogg" *audio-root*)))
+    (sample-finished-action)
+    (sdl-mixer:allocate-channels 16)))
+
+
+;;; SAMPLE-FINISHED-ACTION function
+
+(defun sample-finished-action ()
+  (sdl-mixer:register-sample-finished
+   (lambda (channel)
+     (declare (ignore channel))
+     nil)))
 
 
 ;;;; CLEAN-UP function
 
 (defun clean-up ()
-  ; Clean up calls go here...
-  )
+  (when (sdl-mixer:sample-playing-p nil)
+    (sdl-mixer:pause-sample t)
+    (sdl-mixer:Halt-sample :channel t))
+
+  (loop for s below (length *soundfx*)
+     do (if (equal (aref *soundfx* s) 0)
+	    t
+	    (progn (sdl:free (aref *soundfx* s))
+		   (setf (aref *soundfx* s) 0))))
+  
+  (when *mixer-opened*
+    (sdl-mixer:Close-Audio t)
+    (setf *mixer-opened* nil))
+  (sdl-mixer:quit-mixer))
 
 
 ;;;; START function
@@ -216,12 +307,16 @@
   (reset-game)
   (sdl:with-init (sdl:sdl-init-video sdl:sdl-init-audio)
     (sdl:window *game-width* *game-height* :title-caption "Pong")
-    (setf (sdl:frame-rate) 30)
+    (setf (sdl:frame-rate) 60)
 
-    (sdl:enable-key-repeat 50 20)
+    (setup-audio)
 
-    (setf sdl:*default-font* (sdl:initialise-font sdl:*font-10x20*))
+    (sdl:enable-key-repeat 20 20)
 
+    ;(setf sdl:*default-font* (sdl:initialise-font sdl:*font-10x20*))
+    (unless (sdl:initialise-default-font *terminus-ttf*)
+      (error "FONT-EXAMPLE: Cannot initialize the default font."))
+    
     (sdl:with-events ()
       (:quit-event ()
 		   (clean-up)
@@ -229,10 +324,16 @@
       (:key-down-event (:key key)
 		       (case key
 			 (:sdl-key-r (reset-game))
-			 (:sdl-key-a (move-player *player-1* 'up))
-			 (:sdl-key-z (move-player *player-1* 'down))
+			 (:sdl-key-q (setf *game-state* 0))
+			 (:sdl-key-1 (setf *players* 1))
+			 (:sdl-key-2 (setf *players* 2))
+			 (:sdl-key-space (change-game-state))
 			 (:sdl-key-escape (sdl:push-quit-event))))
       (:key-up-event (:key key)
 		     (case key))
       (:idle ()
+	     (when (sdl:get-key-state :sdl-key-a) (move-player *player-1* 'up))
+	     (when (sdl:get-key-state :sdl-key-z) (move-player *player-1* 'down))
+	     (when (sdl:get-key-state :sdl-key-up) (move-player *player-2* 'up))
+	     (when (sdl:get-key-state :sdl-key-down) (move-player *player-2* 'down))
 	     (render)))))

@@ -1,7 +1,4 @@
-pong
-====
-
-Simple Pong Clone in Common Lisp
+Classic Pong Remake in Common Lisp
 
 ## Dependencies
 

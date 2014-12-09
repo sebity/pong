@@ -133,9 +133,18 @@
 ;;;; PLAYER-AI function
 
 (defun player-ai (c b)
-  (if (< (y b) (y c))
-      (setf (y c) (- (y c) (spd c)))
-      (setf (y c) (+ (y c) (spd c)))))
+  (let ((dy (- (y b) (y c)))
+	(midpoint (/ *game-height* 2)))
+    (if (< (v-x b) 0)
+	(if (= (y c) midpoint)
+	    t
+	    (if (< (y c) midpoint)
+		(setf (y c) (+ (y c) (spd c)))
+		(setf (y c) (- (y c) (spd c)))))
+	(if (or (>= dy 5) (<= dy (- 5)))
+	    (if (< dy 0)
+		(setf (y c) (- (y c) (spd c)))
+		(setf (y c) (+ (y c) (spd c))))))))
 
 
 ;;;; PLAYER-1 function

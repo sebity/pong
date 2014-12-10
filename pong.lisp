@@ -16,6 +16,8 @@
 (defparameter *player-2-score* 0)
 (defparameter *players* 1)
 
+(defparameter *ai-hit-position* 0)
+
 (defparameter *mixer-opened* nil)
 (defparameter *music* nil)
 (defparameter *soundfx* nil)
@@ -90,18 +92,13 @@
   ; player 1 paddle
   (if (and (<= (x b) (+ (x p1) (w p1)))
 	   (>= (x b) (x p1)))
-      (if (and (<= (y b) (+ (y p1) (/ (h p1) 2)))
-	       (>= (y b) (- (y p1) (/ (h p1) 2))))
-	  (progn (setf (v-x b) (- (v-x b)))
-		 (play-sound 0))))
+      (paddle-physics b p1))
 
   ; player 2 paddle
   (if (and (>= (x b) (- (x p2) (w p2)))
 	   (<= (x b) (x p2)))
-      (if (and (<= (y b) (+ (y p2) (/ (h p2) 2)))
-	       (>= (y b) (- (y p2) (/ (h p2) 2))))
-	  (progn (setf (v-x b) (- (v-x b)))
-		 (play-sound 0))))
+      (paddle-physics b p2)
+      (ai-hit-position-choice))
 
   (if (<= (x b) 0)
       (progn (update-score 2)
@@ -109,6 +106,35 @@
   (if (>= (x b) *game-width*)
       (progn (update-score 1)
 	     (play-sound 1))))
+
+
+(defun paddle-physics (b p)
+  (if (and (<= (y b) (+ (y p) (/ (h p) 2)))
+	   (>= (y b) (- (y p) (/ (h p) 2))))
+
+      (cond ((< (y b) (- (y p) 10))
+	     (progn (setf (v-x b) (- (v-x b)))
+		    (setf (v-y b) -0.8)
+		    (play-sound 0)))
+
+	    ((< (y b) (- (y p) 2))
+	     (progn (setf (v-x b) (- (v-x b)))
+		    (setf (v-y b) -0.4)
+		    (play-sound 0)))
+
+	    ((> (y b) (+ (y p) 10))
+	     (progn (setf (v-x b) (- (v-x b)))
+		    (setf (v-y b) 0.8)
+		    (play-sound 0)))
+
+	    ((> (y b) (+ (y p) 2))
+	     (progn (setf (v-x b) (- (v-x b)))
+		    (setf (v-y b) 0.4)
+		    (play-sound 0)))
+
+	    (t (progn (setf (v-x b) (- (v-x b)))
+		      (setf (v-y b) 0)
+		      (play-sound 0))))))
 
 
 ;;;; DRAW-PADDLE function
@@ -141,10 +167,16 @@
 	    (if (< (y c) midpoint)
 		(setf (y c) (+ (y c) (spd c)))
 		(setf (y c) (- (y c) (spd c)))))
-	(if (or (>= dy 5) (<= dy (- 5)))
+
+	(if (or (>= dy (+ 5 *ai-hit-position*)) 
+		(<= dy (- 5 *ai-hit-position*)))
 	    (if (< dy 0)
 		(setf (y c) (- (y c) (spd c)))
 		(setf (y c) (+ (y c) (spd c))))))))
+
+
+(defun ai-hit-position-choice ()
+  (setf *ai-hit-position* (- (random 51) 25)))
 
 
 ;;;; PLAYER-1 function
@@ -243,19 +275,19 @@
 (defun reset-game ()
   (setf *player-1* (make-instance 'paddle
 				  :x 10.0 :y (/ *game-height* 2.0)
-				  :w 10 :h 40
+				  :w 10 :h 50
 				  :r 255 :g 0 :b 0
 				  :spd 4.5))
   (setf *player-2* (make-instance 'paddle
 				  :x (- *game-width* 10.0) :y (/ *game-height* 2.0)
-				  :w 10 :h 40
+				  :w 10 :h 50
 				  :r 0 :g 0 :b 255
-				  :spd 4.5))
+				  :spd 3.0))
   (setf *ball* (make-instance 'ball
 			      :x (/ *game-width* 2.0) :y (/ *game-height* 2.0)
 			      :w 10 :h 10
 			      :r 255 :g 255 :b 0
- 			      :v-x -1.0 :v-y 0.8 :spd 4.0))) 
+			      :v-x -1.0 :v-y 0.4 :spd 4.0)))
 
 
 ;;;; INITIALIZE-GAME function

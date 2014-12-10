@@ -8,13 +8,15 @@
 
 (defparameter *game-width* 600)
 (defparameter *game-height* 600)
-(defparameter *game-state* 0) ; 0=entry, 1:ready, 2:in-game, 3:miss, 4:end-level, 5:scores
+(defparameter *game-state* 0) ; 0=menu, 1:ready, 2:in-game, 3:win-lose
 (defparameter *player-1* nil)
 (defparameter *player-2* nil)
 (defparameter *ball* nil)
 (defparameter *player-1-score* 0)
 (defparameter *player-2-score* 0)
 (defparameter *players* 1)
+(defparameter *max-score* 3)
+(defparameter *level* 1)
 
 (defparameter *ai-hit-position* 0)
 
@@ -108,6 +110,8 @@
 	     (play-sound 1))))
 
 
+;;;; PADDLE-PHYSICS function
+
 (defun paddle-physics (b p)
   (if (and (<= (y b) (+ (y p) (/ (h p) 2)))
 	   (>= (y b) (- (y p) (/ (h p) 2))))
@@ -175,6 +179,8 @@
 		(setf (y c) (+ (y c) (spd c))))))))
 
 
+;;;; AI-HIT-POSITION function
+
 (defun ai-hit-position-choice ()
   (setf *ai-hit-position* (- (random 51) 25)))
 
@@ -201,12 +207,18 @@
 ;;;; UPDATE-SCORE function
 
 (defun update-score (player)
-  (if (= player 1)
-      (incf *player-1-score*))
-  (if (= player 2)
-      (incf *player-2-score*))
+  (let ((serve 1))
+    (if (= player 1)
+      (progn (incf *player-1-score*)
+	     (setf serve 2)))
+    (if (= player 2)
+	(progn (incf *player-2-score*)
+	       (setf serve 1)))
 
-  (reset-game))
+    (if (or (= *player-1-score* *max-score*)
+	    (= *player-2-score* *max-score*))
+	(change-game-state)
+	(reset-match serve))))
 
 
 ;;;; DRAW-TEXT function
@@ -224,6 +236,8 @@
     (draw-text score (- (/ *game-width* 2) 30) 10 255 255 255)))
 
 
+;;;; DISPLAY-COURT function
+
 (defun display-court ()
   (sdl:draw-line-* (ash *game-width* -1) 0 
 		   (ash *game-width* -1) *game-height*
@@ -240,17 +254,67 @@
 
 (defun display-menu ()
   (draw-text "PONG" (- (/ *game-width* 2) 10) 100 255 255 255)
-  (draw-text "Press SPACE to Play" (- (/ *game-width* 2) 100) 300 255 255 0))
+  (draw-text "Press 1 for Player vs Computer" (- (/ *game-width* 2) 200) 300 0 255 0)
+  (draw-text "Press 2 for Player vs Player" (- (/ *game-width* 2) 200) 350 255 255 0))
+
+
+;;;; DISPLAY-WIN-LOSE function
+
+(defun display-win-lose ()
+  (if (= *players* 1)
+      (if (= *player-1-score* *max-score*)
+	  (draw-text "You Win!" (- (/ *game-width* 2) 10) 150 255 255 255)
+	  (draw-text "You Lose!" (- (/ *game-width* 2) 10) 150 255 0 0))
+      (if (= *player-1-score* *max-score*)
+	  (draw-text "Player 1 Won!" (- (/ *game-width* 2) 10) 150 255 255 255)
+	  (draw-text "Player 2 Won!" (- (/ *game-width* 2) 10) 150 255 255 255)))
+
+  (draw-text "Press SPACE to Continue" (- (/ *game-width* 2) 100) 300 255 255 0))
+
+
+;;;; NEW-MATCH function
+
+(defun new-match ()
+  (setf *player-1-score* 0)
+  (setf *player-2-score* 0)
+  (setf *game-state* 2)
+  (reset-match 1))
+
+
+;;;; SELECT-OPTION function
+
+(defun select-option (choice)
+  (if (zerop *game-state*)
+      (cond ((= choice 1) (progn (setf *players* 1)
+				 (change-game-state)))
+	    ((= choice 2) (progn (setf *players* 2)
+				 (change-game-state)))
+	    (t ()))))
+	    
+
+;;;; CONTINUE-OPTION function
+
+(defun continue-option ()
+  (cond ((zerop *game-state*) (change-game-state))
+	((= *game-state* 3) (if (and (= *players* 1) (= *player-1-score* *max-score*))
+				(progn (incf *level*)
+				       (new-match))
+				(change-game-state)))
+	(t ())))
 
 
 ;;;; CHANGE-GAME-STATE function
 
 (defun change-game-state ()
-  (if (zerop *game-state*)
-      (progn (setf *player-1-score* 0)
-	     (setf *player-2-score* 0)
-	     (reset-game)
-	     (setf *game-state* 2))))
+  (cond ((zerop *game-state*) 
+	 (progn (setf *player-1-score* 0)
+		(setf *player-2-score* 0)
+		(reset-game)
+		(setf *game-state* 2)
+		(setf *level* 1)))
+	((= *game-state* 2) (setf *game-state* 3))
+	((= *game-state* 3) (setf *game-state* 0))
+	(t ())))
 
 
 ;;;; RENDER function
@@ -258,36 +322,66 @@
 (defun render ()
   (update-swank)
   (sdl:clear-display sdl:*black*)
-  (cond ((zerop *game-state*) (display-menu))
-	(t (player-1)
-	   (player-2)
-	   (display-court)
-	   (display-score)
-	   (ball)
-	   (if (= *players* 1)
-	       (player-ai *player-2* *ball*))))
+  (cond ((= *game-state* 1) (display-win-lose))
+
+	((= *game-state* 2) 
+	 (player-1)
+	 (player-2)
+	 (display-court)
+	 (display-score)
+	 (ball)
+	 (if (= *players* 1)
+	     (player-ai *player-2* *ball*)))
+
+	((= *game-state* 3) (display-win-lose))
+
+	(t (display-menu)))
 
   (sdl:update-display))
+
+
+;;;; RESET-MATCH function
+
+(defun reset-match (serve)
+  (let ((ball-y (- (random 2.0) 1.0))
+	(p1 *player-1*)
+	(p2 *player-2*)
+	(b *ball*))
+    (setf (y p1) (/ *game-height* 2.0))
+    (setf (spd p1) (+ 4.5 (* *level* 0.25)))
+
+    (setf (y p2) (/ *game-height* 2.0))
+    (setf (spd p2) (+ 4.5 (* *level* 0.25)))
+
+    (setf (x b) (/ *game-width* 2.0))
+    (setf (y b) (/ *game-height* 2.0))
+    
+    (if (= serve 1)
+	(setf (v-x b) (+ 1.0 (* *level* 0.2)))
+	(setf (v-x b) (- (+ 1.0 (* *level* 0.2)))))
+
+    (setf (v-y b) ball-y)))
 
 
 ;;;; RESET-GAME function
 
 (defun reset-game ()
-  (setf *player-1* (make-instance 'paddle
-				  :x 10.0 :y (/ *game-height* 2.0)
-				  :w 10 :h 50
-				  :r 255 :g 0 :b 0
-				  :spd 4.5))
-  (setf *player-2* (make-instance 'paddle
-				  :x (- *game-width* 10.0) :y (/ *game-height* 2.0)
-				  :w 10 :h 50
-				  :r 0 :g 0 :b 255
-				  :spd 3.0))
-  (setf *ball* (make-instance 'ball
-			      :x (/ *game-width* 2.0) :y (/ *game-height* 2.0)
-			      :w 10 :h 10
-			      :r 255 :g 255 :b 0
-			      :v-x -1.0 :v-y 0.4 :spd 4.0)))
+  (let ((ball-y (- (random 2.0) 1.0)))
+    (setf *player-1* (make-instance 'paddle
+				    :x 10.0 :y (/ *game-height* 2.0)
+				    :w 10 :h 50
+				    :r 255 :g 0 :b 0
+				    :spd 4.5))
+    (setf *player-2* (make-instance 'paddle
+				    :x (- *game-width* 10.0) :y (/ *game-height* 2.0)
+				    :w 10 :h 50
+				    :r 0 :g 0 :b 255
+				    :spd 3.0))
+    (setf *ball* (make-instance 'ball
+				:x (/ *game-width* 2.0) :y (/ *game-height* 2.0)
+				:w 10 :h 10
+				:r 255 :g 255 :b 0
+				:v-x -1.0 :v-y ball-y :spd 4.0))))
 
 
 ;;;; INITIALIZE-GAME function
@@ -296,7 +390,8 @@
   (setf *players* 1)
   (setf *player-1-score* 0)
   (setf *player-2-score* 0)
-  (setf *game-state* 0))
+  (setf *game-state* 0)
+  (setf *level* 1))
 
 
 ;;;; SETUP-AUDIO function
@@ -352,8 +447,6 @@
 
     (setup-audio)
 
-    (sdl:enable-key-repeat 20 20)
-
     ;(setf sdl:*default-font* (sdl:initialise-font sdl:*font-10x20*))
     (unless (sdl:initialise-default-font *terminus-ttf*)
       (error "FONT-EXAMPLE: Cannot initialize the default font."))
@@ -366,9 +459,9 @@
 		       (case key
 			 (:sdl-key-r (reset-game))
 			 (:sdl-key-q (setf *game-state* 0))
-			 (:sdl-key-1 (setf *players* 1))
-			 (:sdl-key-2 (setf *players* 2))
-			 (:sdl-key-space (change-game-state))
+			 (:sdl-key-1 (select-option 1))
+			 (:sdl-key-2 (select-option 2))
+			 (:sdl-key-space (continue-option))
 			 (:sdl-key-escape (sdl:push-quit-event))))
       (:key-up-event (:key key)
 		     (case key))

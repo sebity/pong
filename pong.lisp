@@ -15,7 +15,7 @@
 (defparameter *player-1-score* 0)
 (defparameter *player-2-score* 0)
 (defparameter *players* 1)
-(defparameter *max-score* 3)
+(defparameter *max-score* 7)
 (defparameter *level* 1)
 
 (defparameter *ai-hit-position* 0)

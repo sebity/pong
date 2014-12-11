@@ -118,22 +118,22 @@
 
       (cond ((< (y b) (- (y p) 10))
 	     (progn (setf (v-x b) (- (v-x b)))
-		    (setf (v-y b) -0.8)
+		    (setf (v-y b) (- (+ 0.8 (* *level* 0.2))))
 		    (play-sound 0)))
 
 	    ((< (y b) (- (y p) 2))
 	     (progn (setf (v-x b) (- (v-x b)))
-		    (setf (v-y b) -0.4)
+		    (setf (v-y b) (- (+ 0.4 (* *level* 0.2))))
 		    (play-sound 0)))
 
 	    ((> (y b) (+ (y p) 10))
 	     (progn (setf (v-x b) (- (v-x b)))
-		    (setf (v-y b) 0.8)
+		    (setf (v-y b) (+ 0.8 (* *level* 0.2)))
 		    (play-sound 0)))
 
 	    ((> (y b) (+ (y p) 2))
 	     (progn (setf (v-x b) (- (v-x b)))
-		    (setf (v-y b) 0.4)
+		    (setf (v-y b) (+ 0.4 (* *level* 0.2)))
 		    (play-sound 0)))
 
 	    (t (progn (setf (v-x b) (- (v-x b)))
@@ -351,14 +351,17 @@
     (setf (spd p1) (+ 4.5 (* *level* 0.25)))
 
     (setf (y p2) (/ *game-height* 2.0))
-    (setf (spd p2) (+ 4.5 (* *level* 0.25)))
-
-    (setf (x b) (/ *game-width* 2.0))
+    (setf (spd p2) (+ 3.0 (* *level* 0.25)))
+ 
+   
     (setf (y b) (/ *game-height* 2.0))
-    
+    (setf (spd b) (+ 4.0 (* *level* 0.2)))
+
     (if (= serve 1)
-	(setf (v-x b) (+ 1.0 (* *level* 0.2)))
-	(setf (v-x b) (- (+ 1.0 (* *level* 0.2)))))
+	(progn (setf (x b) 20.0)
+	       (setf (v-x b) (+ 1.0 (* *level* 0.2))))
+	(progn (setf (x b) (- *game-width* 20.0))
+	       (setf (v-x b) (- (+ 1.0 (* *level* 0.2))))))
 
     (setf (v-y b) ball-y)))
 
@@ -371,14 +374,14 @@
 				    :x 10.0 :y (/ *game-height* 2.0)
 				    :w 10 :h 50
 				    :r 255 :g 0 :b 0
-				    :spd 4.5))
+				    :spd 4.25))
     (setf *player-2* (make-instance 'paddle
 				    :x (- *game-width* 10.0) :y (/ *game-height* 2.0)
 				    :w 10 :h 50
 				    :r 0 :g 0 :b 255
 				    :spd 3.0))
     (setf *ball* (make-instance 'ball
-				:x (/ *game-width* 2.0) :y (/ *game-height* 2.0)
+				:x (- *game-width* 20.0) :y (/ *game-height* 2.0)
 				:w 10 :h 10
 				:r 255 :g 255 :b 0
 				:v-x -1.0 :v-y ball-y :spd 4.0))))

@@ -1,3 +1,6 @@
+Pong
+====
+
 Classic Pong Remake in Common Lisp
 
 ## Dependencies
@@ -6,7 +9,7 @@ Classic Pong Remake in Common Lisp
 
 ## Quickstart
 
-To run this game place the files somewhere [Quicklisp] can find it, and execute the following in the REPL:
+To run this game place the files somewhere [Quicklisp](http://www.quicklisp.org/) can find it, and execute the following in the REPL:
 
 ```lisp
 (ql:quickload :pong)
